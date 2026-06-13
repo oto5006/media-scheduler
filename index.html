@@ -1,0 +1,1923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RCCG Media Department — Scheduling Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#c9a84c;--gold-light:#e8c96d;--gold-dim:rgba(201,168,76,.15);
+  --bg:#0d0f14;--surface:#141720;--surface2:#1c2030;--surface3:#242840;
+  --border:rgba(255,255,255,.07);--text:#e8eaf0;--text-muted:#7b84a0;
+  --red:#ef4444;--green:#10b981;--blue:#6366f1;
+  --radius:10px;--radius-lg:16px;--shadow:0 4px 24px rgba(0,0,0,.45);--tr:.2s ease;
+}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6;overflow-x:hidden}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:var(--surface)}::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:99px}
+
+.app-shell{display:flex;min-height:100vh}
+
+/* Sidebar */
+.sidebar{width:240px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;transition:transform var(--tr)}
+.sidebar-brand{padding:24px 20px 18px;border-bottom:1px solid var(--border)}
+.brand-cross{width:32px;height:32px;background:var(--gold);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#000;font-weight:900;margin-bottom:10px}
+.brand-name{font-family:'Playfair Display',Georgia,serif;font-size:14px;font-weight:700;color:var(--gold);line-height:1.2}
+.brand-sub{font-size:10px;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+.sidebar-nav{flex:1;padding:16px 0;overflow-y:auto}
+.nav-section-label{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-muted);padding:0 20px 6px;margin-top:8px}
+.nav-item{display:flex;align-items:center;gap:11px;padding:10px 20px;color:var(--text-muted);cursor:pointer;border-left:3px solid transparent;transition:all var(--tr);font-size:13px;font-weight:500;user-select:none}
+.nav-item:hover{color:var(--text);background:var(--surface2)}
+.nav-item.active{color:var(--gold);border-left-color:var(--gold);background:var(--gold-dim)}
+.nav-icon{font-size:15px;width:18px;text-align:center}
+.sidebar-footer{padding:14px 20px;border-top:1px solid var(--border);font-size:10px;color:var(--text-muted);line-height:1.5}
+
+/* Sync status pill in sidebar */
+.sync-status{display:flex;align-items:center;gap:7px;padding:10px 20px;font-size:11px;color:var(--text-muted)}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--surface3);flex-shrink:0;transition:background .3s}
+.sync-dot.syncing{background:#f59e0b;animation:pulse 1s infinite}
+.sync-dot.ok{background:var(--green)}
+.sync-dot.error{background:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.main-content{margin-left:240px;flex:1;display:flex;flex-direction:column;min-width:0}
+
+/* Topbar */
+.topbar{height:58px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:50;flex-shrink:0}
+.topbar-title{font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:700;color:var(--text)}
+.topbar-subtitle{font-size:11px;color:var(--text-muted);margin-top:1px}
+.topbar-actions{display:flex;align-items:center;gap:10px}
+
+/* Loading overlay */
+.loading-overlay{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .4s ease}
+.loading-overlay.hidden{opacity:0;pointer-events:none}
+.spinner{width:40px;height:40px;border:3px solid var(--surface3);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;color:var(--text-muted)}
+.loading-sub{font-size:11px;color:var(--text-muted);opacity:.6}
+
+/* Sync banner */
+.sync-banner{display:flex;align-items:center;gap:10px;padding:9px 16px;border-radius:var(--radius);font-size:12px;margin-bottom:18px;border:1px solid}
+.sync-banner.loading{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25);color:#f59e0b}
+.sync-banner.success{background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.25);color:var(--green)}
+.sync-banner.error{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.25);color:var(--red)}
+.sync-banner.hidden{display:none}
+
+/* Sections */
+.page-section{display:none;padding:28px}
+.page-section.active{display:block}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;transition:border-color var(--tr)}
+.stat-card:hover{border-color:var(--gold-light)}
+.stat-icon{font-size:20px;margin-bottom:8px}
+.stat-value{font-size:26px;font-weight:700;color:var(--gold);font-family:'Playfair Display',Georgia,serif}
+.stat-label{font-size:10px;color:var(--text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.06em}
+
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.section-title{font-family:'Playfair Display',Georgia,serif;font-size:20px;font-weight:700}
+.section-title span{color:var(--gold)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;border:none;transition:all var(--tr);font-family:'DM Sans',system-ui,sans-serif;letter-spacing:.01em;white-space:nowrap}
+.btn-primary{background:var(--gold);color:#000}
+.btn-primary:hover{background:var(--gold-light);transform:translateY(-1px)}
+.btn-secondary{background:var(--surface3);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--surface2);border-color:var(--gold)}
+.btn-danger{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.btn-danger:hover{background:rgba(239,68,68,.22)}
+.btn-sm{padding:5px 11px;font-size:11px}
+
+/* Card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.card-title{font-weight:600;font-size:14px}
+.card-body{padding:18px}
+
+/* Table */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{padding:9px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);background:var(--surface2);border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border);transition:background var(--tr)}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--surface2)}
+td{padding:10px 12px;vertical-align:middle}
+td:first-child{font-weight:500}
+tbody tr.highlight-row{background:rgba(201,168,76,.06)}
+tbody tr.highlight-row:hover{background:rgba(201,168,76,.12)}
+
+.role-badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:600;margin:2px}
+.assignee{display:flex;align-items:center;gap:5px;font-size:11px}
+.assignee-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.unassigned{color:var(--text-muted);font-style:italic;font-size:11px}
+.date-cell{white-space:nowrap;font-weight:600;color:var(--gold);font-size:12px}
+
+.filter-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.search-input,.filter-select{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:7px 12px;font-size:12px;font-family:'DM Sans',system-ui,sans-serif;outline:none;transition:border-color var(--tr)}
+.search-input{min-width:200px}
+.search-input:focus,.filter-select:focus{border-color:var(--gold)}
+.filter-select option{background:var(--surface2)}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);z-index:200;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);width:min(480px,95vw);box-shadow:var(--shadow);animation:modalIn .18s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-header{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-family:'Playfair Display',Georgia,serif;font-size:17px}
+.modal-body{padding:22px}
+.modal-footer{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:5px;font-weight:600}
+.form-control{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:9px 12px;font-size:13px;font-family:'DM Sans',system-ui,sans-serif;outline:none;transition:border-color var(--tr)}
+.form-control:focus{border-color:var(--gold)}
+.form-control option{background:var(--surface2)}
+.form-hint{font-size:10px;color:var(--text-muted);margin-top:4px}
+
+.quarter-tabs{display:flex;gap:7px;margin-bottom:18px;flex-wrap:wrap}
+.q-tab{padding:6px 16px;border-radius:99px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);transition:all var(--tr)}
+.q-tab.active{background:var(--gold);color:#000;border-color:var(--gold)}
+.q-tab:hover:not(.active){border-color:var(--gold);color:var(--text)}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-muted)}
+.empty-icon{font-size:44px;margin-bottom:14px;opacity:.4}
+.empty-state h3{font-size:15px;color:var(--text);margin-bottom:5px}
+.empty-state p{font-size:12px}
+
+.toast-container{position:fixed;bottom:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:7px}
+.toast{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 16px;font-size:12px;display:flex;align-items:center;gap:9px;box-shadow:var(--shadow);animation:toastIn .22s ease;max-width:300px}
+@keyframes toastIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
+.toast.success{border-left:3px solid var(--green)}.toast.error{border-left:3px solid var(--red)}.toast.info{border-left:3px solid var(--gold)}
+
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--surface3);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--gold);border:1px solid var(--border);flex-shrink:0}
+
+.workload-bar-wrap{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:12px}
+.workload-name{width:170px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.workload-bar-track{flex:1;height:7px;background:var(--surface3);border-radius:99px}
+.workload-bar{height:7px;border-radius:99px;background:var(--gold);transition:width .4s ease}
+.workload-count{width:28px;text-align:right;color:var(--text-muted);font-size:11px}
+
+.note-input{background:transparent;border:none;color:var(--text-muted);font-size:11px;width:100%;outline:none;font-family:'DM Sans',system-ui,sans-serif}
+.note-input:focus{color:var(--text)}
+.gold-info{background:var(--gold-dim);border:1px solid rgba(201,168,76,.35);border-radius:var(--radius);padding:11px 13px;font-size:12px;color:var(--gold)}
+.dash-grid{display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start}
+
+/* ── Schedule table extras ── */
+.svc-name-cell{white-space:nowrap}
+.svc-tag{display:inline-block;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:700;margin-bottom:2px}
+.svc-tag.anointing{background:rgba(201,168,76,.18);color:var(--gold);border:1px solid rgba(201,168,76,.3)}
+.svc-tag.celebration{background:rgba(99,102,241,.12);color:#818cf8;border:1px solid rgba(99,102,241,.25)}
+.week-svc-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:5px;font-size:10px;background:rgba(16,185,129,.1);color:#34d399;border:1px solid rgba(16,185,129,.2);white-space:nowrap;margin:1px}
+.edit-cell-select{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:3px 6px;font-size:11px;font-family:'DM Sans',system-ui,sans-serif;outline:none;width:100%;min-width:120px}
+.edit-cell-select:focus{border-color:var(--gold)}
+.edit-mode-banner{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.25);border-radius:var(--radius);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-size:13px;flex-wrap:wrap;gap:8px}
+.pyodide-loading{background:rgba(14,165,233,.08);border:1px solid rgba(14,165,233,.2);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:#38bdf8;display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.pyodide-loading.hidden{display:none}
+.py-spinner{width:14px;height:14px;border:2px solid rgba(56,189,248,.3);border-top-color:#38bdf8;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+
+/* ── Auth / Login ── */
+.login-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(6px);z-index:300;align-items:center;justify-content:center}
+.login-modal-overlay.open{display:flex}
+.login-modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);width:min(420px,95vw);box-shadow:var(--shadow);animation:modalIn .2s ease;overflow:hidden}
+.login-header{background:linear-gradient(135deg,var(--surface2),var(--surface3));padding:28px 28px 22px;text-align:center;border-bottom:1px solid var(--border)}
+.login-cross{width:44px;height:44px;background:var(--gold);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#000;font-weight:900;margin:0 auto 14px}
+.login-title{font-family:'Playfair Display',Georgia,serif;font-size:19px;font-weight:700;color:var(--text)}
+.login-sub{font-size:12px;color:var(--text-muted);margin-top:4px}
+.login-body{padding:24px 28px}
+.login-footer{padding:0 28px 24px;display:flex;flex-direction:column;gap:10px}
+.login-error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:var(--radius);padding:9px 12px;font-size:12px;color:var(--red);display:none;text-align:center}
+.login-error.show{display:block}
+.input-wrap{position:relative}
+.input-wrap .form-control{padding-right:40px}
+.eye-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:4px}
+.eye-btn:hover{color:var(--text)}
+.auth-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;border-radius:99px;font-weight:600}
+.auth-pill.authed{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25)}
+.auth-pill.unauthed{background:rgba(255,255,255,.05);color:var(--text-muted);border:1px solid var(--border)}
+.auth-pill.checking{background:rgba(245,158,11,.1);color:#f59e0b;border:1px solid rgba(245,158,11,.2)}
+
+/* ── Status badges ── */
+.status-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;letter-spacing:.03em;white-space:nowrap}
+.status-hod      {background:rgba(201,168,76,.18);color:#c9a84c;border:1px solid rgba(201,168,76,.35)}
+.status-ahod     {background:rgba(201,168,76,.10);color:#a88a3a;border:1px solid rgba(201,168,76,.22)}
+.status-media-coord{background:rgba(99,102,241,.15);color:#818cf8;border:1px solid rgba(99,102,241,.3)}
+.status-sound-coord{background:rgba(16,185,129,.13);color:#34d399;border:1px solid rgba(16,185,129,.28)}
+.status-probation{background:rgba(245,158,11,.13);color:#fbbf24;border:1px solid rgba(245,158,11,.28)}
+.status-non-participant{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.25)}
+
+/* ── Unit pill ── */
+.unit-pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600;background:var(--surface3);color:var(--text-muted);border:1px solid var(--border);white-space:nowrap}
+
+/* ── Filter row ── */
+.filter-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.filter-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);font-weight:600;white-space:nowrap}
+
+/* Sheet info bar */
+.sheet-info-bar{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 16px;margin-bottom:20px;font-size:12px;flex-wrap:wrap;gap:8px}
+.sheet-info-left{display:flex;align-items:center;gap:10px}
+.sheet-badge{display:flex;align-items:center;gap:6px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);border-radius:99px;padding:3px 10px;font-size:11px;color:var(--green);font-weight:600}
+.sheet-badge.err{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.2);color:var(--red)}
+
+@media(max-width:900px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .main-content{margin-left:0}
+  .page-section{padding:18px 14px}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .dash-grid{grid-template-columns:1fr}
+  .topbar{padding:0 14px}
+  .mobile-btn{display:flex!important}
+}
+.mobile-btn{display:none;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:4px 8px}
+
+@media print{
+  .sidebar,.topbar,.filter-bar,.modal-overlay,.toast-container,.sheet-info-bar,.section-header .btn,.q-tab{display:none!important}
+  .main-content{margin-left:0!important}
+  body{background:#fff;color:#000}
+  table{font-size:10px}
+  thead th{background:#eee!important;color:#000!important}
+}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Loading member data…</div>
+  <div class="loading-sub" id="loadingSub">Connecting to Google Sheets</div>
+</div>
+
+<div class="app-shell">
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-cross">✦</div>
+    <div class="brand-name">RCCG Media<br>Department</div>
+    <div class="brand-sub">Scheduling Portal</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Main</div>
+    <div class="nav-item active" data-nav="dashboard"><span class="nav-icon">🏠</span> Dashboard</div>
+    <div class="nav-item" data-nav="schedule"><span class="nav-icon">📅</span> Schedule</div>
+    <div class="nav-section-label">People</div>
+    <div class="nav-item" data-nav="members"><span class="nav-icon">👥</span> Member Roster</div>
+    <div class="nav-item" data-nav="workload"><span class="nav-icon">📊</span> Workload Analysis</div>
+    <div class="nav-section-label">System</div>
+    <div class="nav-item" data-nav="settings"><span class="nav-icon">⚙️</span> Settings</div>
+  </nav>
+  <div class="sync-status" id="syncStatus">
+    <div class="sync-dot" id="syncDot"></div>
+    <span id="syncText">Not synced</span>
+  </div>
+  <div class="sidebar-footer">RCCG Indianapolis<br>Media Department © 2026</div>
+</aside>
+
+<!-- MAIN -->
+<div class="main-content">
+
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="mobile-btn" id="mobileMenuBtn" aria-label="Menu">☰</button>
+      <div>
+        <div class="topbar-title" id="topbarTitle">Dashboard</div>
+        <div class="topbar-subtitle">RCCG Media Department</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span class="auth-pill unauthed" id="authPill">🔒 Not logged in</span>
+      <button class="btn btn-secondary btn-sm" onclick="syncFromSheet()" id="syncBtn">🔄 Sync Now</button>
+      <button class="btn btn-primary" onclick="openGenerateModal()">✦ Generate Schedule</button>
+    </div>
+  </header>
+
+  <!-- DASHBOARD -->
+  <section class="page-section active" data-section="dashboard">
+    <div class="sheet-info-bar" id="sheetInfoBar">
+      <div class="sheet-info-left">
+        <span style="color:var(--text-muted)">Data source:</span>
+        <span class="sheet-badge" id="sheetBadge">⟳ Connecting…</span>
+        <span style="color:var(--text-muted);font-size:11px" id="lastSyncTime"></span>
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="syncFromSheet()">🔄 Refresh Data</button>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-value" id="statMembers">—</div><div class="stat-label">Active Members</div></div>
+      <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-value" id="statSchedules">—</div><div class="stat-label">Schedules Generated</div></div>
+      <div class="stat-card"><div class="stat-icon">🎭</div><div class="stat-value">8</div><div class="stat-label">Media Roles</div></div>
+      <div class="stat-card"><div class="stat-icon">🎂</div><div class="stat-value" id="birthdayCount">—</div><div class="stat-label">Birthdays This Month</div></div>
+    </div>
+    <div class="dash-grid">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📆 Upcoming Sundays</span>
+          <button class="btn btn-sm btn-secondary" onclick="navigate('schedule')">View All →</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Presenter</th><th>Sound</th><th>Camera</th></tr></thead>
+            <tbody id="upcomingBody"><tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">🎂 Birthdays This Month</span></div>
+        <div class="card-body" id="birthdayList"><p style="color:var(--text-muted);font-size:12px">Loading…</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCHEDULE -->
+  <section class="page-section" data-section="schedule">
+    <div class="section-header">
+      <div class="section-title">Service <span>Schedule</span></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span id="editModeLabel" style="display:none;font-size:12px;color:var(--gold);font-weight:600">✏ Edit Mode ON</span>
+        <button class="btn btn-sm btn-secondary" id="editToggleBtn" onclick="toggleEditMode()" style="display:none">✏ Edit Schedule</button>
+        <button class="btn btn-primary" onclick="openGenerateModal()">✦ Generate New</button>
+      </div>
+    </div>
+    <div class="pyodide-loading" id="pyodideStatus">
+      <div class="py-spinner"></div>
+      <span id="pyodideStatusText">Loading Python scheduler…</span>
+    </div>
+    <div id="scheduleContent"></div>
+  </section>
+
+  <!-- MEMBERS -->
+  <section class="page-section" data-section="members">
+    <div class="section-header">
+      <div class="section-title">Member <span>Roster</span></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span id="memberCount" style="font-size:12px;color:var(--text-muted)"></span>
+        <button class="btn btn-sm btn-secondary" onclick="syncFromSheet()">&#x1f504; Sync from Sheet</button>
+      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+      <input type="text" id="memberSearch" class="search-input" placeholder="Search by name..." style="flex:1;min-width:160px">
+      <div class="filter-group"><span class="filter-label">Role:</span><select id="roleFilter" class="filter-select"><option value="all">All Roles</option></select></div>
+      <div class="filter-group"><span class="filter-label">Unit:</span><select id="unitFilter" class="filter-select"><option value="all">All Units</option></select></div>
+      <div class="filter-group"><span class="filter-label">Status:</span>
+        <select id="statusFilter" class="filter-select">
+          <option value="all">All Statuses</option>
+          <option value="hod">H.O.D</option>
+          <option value="ahod">A.H.O.D</option>
+          <option value="mediaCoordinator">Media Coordinator</option>
+          <option value="soundCoordinator">Sound Coordinator</option>
+          <option value="probation">Probation</option>
+          <option value="nonParticipant">Non Participant</option>
+          <option value="active">Active (regular)</option>
+        </select>
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="clearMemberFilters()">x Clear</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Status</th><th>Unit</th><th>Phone</th><th>Email</th><th>Birthday</th><th>Roles</th><th>Svc Pref.</th></tr></thead>
+          <tbody id="membersBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- WORKLOAD -->
+  <section class="page-section" data-section="workload">
+    <div class="section-header"><div class="section-title">Workload <span>Analysis</span></div></div>
+    <div id="workloadContent"></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="page-section" data-section="settings">
+    <div class="section-title" style="margin-bottom:22px">Settings <span style="color:var(--gold)">& Integration</span></div>
+    <div style="max-width:640px;display:flex;flex-direction:column;gap:18px">
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📊 Google Sheets Connection</span>
+          <span class="sheet-badge" id="settingsBadge">Checking…</span>
+        </div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+            Connected to <strong style="color:var(--text)">Media Department Data &amp; Schedule</strong> →
+            <strong style="color:var(--text)">Training Record</strong> tab.
+            The page pulls live data every time it loads, and you can manually refresh at any time.
+          </p>
+          <div class="form-group">
+            <label class="form-label">Sheet ID (read-only)</label>
+            <input type="text" class="form-control" value="1zHoKCNhu4lkH15Z26RpsapdgGkoG_pCP_acZwleJ_gI" readonly style="opacity:.6;cursor:default">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tab Name (read-only)</label>
+            <input type="text" class="form-control" value="Training Record" readonly style="opacity:.6;cursor:default">
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="syncFromSheet()">🔄 Sync Now</button>
+            <a href="https://docs.google.com/spreadsheets/d/1zHoKCNhu4lkH15Z26RpsapdgGkoG_pCP_acZwleJ_gI/edit" target="_blank" class="btn btn-secondary">↗ Open Sheet</a>
+          </div>
+          <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+            <div class="form-group">
+              <label class="form-label">Apps Script Web App URL <span style="color:var(--gold)">(for schedule write-back)</span></label>
+              <input type="url" class="form-control" id="appsScriptUrl" placeholder="https://script.google.com/macros/s/…/exec" oninput="localStorage.setItem('rccg_apps_script_url',this.value)">
+              <div class="form-hint">Deploy appsscript.gs as a Web App and paste the URL here. See the setup guide below.</div>
+            </div>
+            <div style="background:var(--surface2);border-radius:var(--radius);padding:14px 16px;font-size:11px;color:var(--text-muted);line-height:1.9">
+              <strong style="color:var(--text);font-size:12px">📋 Apps Script Setup (one-time):</strong><br>
+              1. Open your Google Sheet → <strong style="color:var(--text)">Extensions → Apps Script</strong><br>
+              2. Delete any code, paste the contents of <code style="color:var(--gold)">appsscript.gs</code> from your repo<br>
+              3. Click <strong style="color:var(--text)">Deploy → New deployment → Web app</strong><br>
+              4. Execute as: <strong style="color:var(--text)">Me</strong> &nbsp;|&nbsp; Who has access: <strong style="color:var(--text)">Anyone</strong><br>
+              5. Click Deploy → copy the URL → paste above<br>
+              6. On first use, Google will ask you to authorise the script — click Allow
+            </div>
+          </div>
+          <div style="margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);font-size:11px;color:var(--text-muted);line-height:1.7">
+            <strong style="color:var(--text)">How shared schedules work:</strong><br>
+            1. Admin logs in → Generate Schedule → it is automatically pushed to Google Sheets<br>
+            2. Every user who opens the site loads that same schedule — no action needed<br>
+            3. Non-admins never need to generate; they just open the page and see it<br><br>
+            <strong style="color:var(--text)">Member data updates:</strong><br>
+            1. Edit your Training Record sheet (roles, statuses, new members, etc.)<br>
+            2. Reload this page — member data is always fetched fresh on load<br>
+            3. Or click "Sync Now" at any time without reloading
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">📋 Column Mapping</span></div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Detected columns from your Training Record sheet:</p>
+          <div id="columnMapDisplay" style="font-size:12px;color:var(--text-muted)">Loading…</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">🎨 Schedule Rules</span></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Max Assignments Per Person Per Quarter</label>
+            <input type="number" class="form-control" value="8" min="1" max="20" id="maxAssignments">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Minimum Rest Sundays Between Assignments</label>
+            <input type="number" class="form-control" value="1" min="0" max="4" id="minRest">
+          </div>
+          <button class="btn btn-primary" onclick="toast('Schedule rules saved','success')">Save Rules</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">🗑 Data Management</span></div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Schedules are stored in Google Sheets and shared with all users. Member data always comes live from the Training Record tab.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="refreshSharedSchedules()">🔄 Reload Schedules from Sheet</button>
+            <button class="btn btn-secondary" onclick="exportData()">⬇ Export JSON</button>
+            <button class="btn btn-danger" onclick="clearAllData()">🗑 Clear Local Cache</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="login-modal-overlay" id="loginModal">
+  <div class="login-modal">
+    <div class="login-header">
+      <div class="login-cross">✦</div>
+      <div class="login-title">Schedule Access</div>
+      <div class="login-sub">Sign in to create or update schedules</div>
+    </div>
+    <div class="login-body">
+      <div class="login-error" id="loginError">Incorrect username or password. Please try again.</div>
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" id="loginUsername" class="form-control" placeholder="Enter your username" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Password</label>
+        <div class="input-wrap">
+          <input type="password" id="loginPassword" class="form-control" placeholder="Enter your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitLogin()">
+          <button class="eye-btn" onclick="togglePasswordVisibility()" id="eyeBtn" title="Show/hide password">👁</button>
+        </div>
+      </div>
+    </div>
+    <div class="login-footer">
+      <button class="btn btn-primary" id="loginBtn" onclick="submitLogin()" style="width:100%;justify-content:center;padding:11px">Sign In</button>
+      <button class="btn btn-secondary" onclick="closeLoginModal()" style="width:100%;justify-content:center">Cancel</button>
+      <div style="font-size:10px;color:var(--text-muted);text-align:center;line-height:1.6;padding-top:4px">
+        Credentials are managed in the<br>
+        <a href="https://docs.google.com/spreadsheets/d/1Ji6gLmw1jFj6j23t4N1ndiPd4HxJBC_roj0GZNtzbw8/edit" target="_blank" style="color:var(--gold);text-decoration:none">RCCG Media Users sheet ↗</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GENERATE MODAL -->
+<div class="modal-overlay" id="generateModal" onclick="if(event.target===this)closeGenerateModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">✦ Generate Schedule</span>
+      <button class="btn btn-sm btn-secondary" onclick="closeGenerateModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Year</label>
+        <input type="number" id="genYear" class="form-control" value="2026" min="2020" max="2040">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Quarter</label>
+        <select id="genQuarter" class="form-control">
+          <option value="1">Q1 — January through March</option>
+          <option value="2">Q2 — April through June</option>
+          <option value="3">Q3 — July through September</option>
+          <option value="4">Q4 — October through December</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Assignment Strategy</label>
+        <select class="form-control">
+          <option>Balanced (fewest assignments first)</option>
+          <option>Round Robin</option>
+        </select>
+      </div>
+      <div class="gold-info">✦ Assigns all 8 media roles for every Sunday in the selected quarter using live member data from Google Sheets.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeGenerateModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitGenerate()">Generate Schedule</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+//  GOOGLE SHEETS CONFIG
+// ─────────────────────────────────────────────────────────────────
+const SHEET_ID   = "1zHoKCNhu4lkH15Z26RpsapdgGkoG_pCP_acZwleJ_gI";
+const SHEET_NAME = "Training Record";
+const CSV_URL    = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`;
+
+// ─────────────────────────────────────────────────────────────────
+//  CREDENTIALS SHEET CONFIG
+// ─────────────────────────────────────────────────────────────────
+const AUTH_SHEET_ID   = "1Ji6gLmw1jFj6j23t4N1ndiPd4HxJBC_roj0GZNtzbw8";
+const AUTH_SHEET_NAME = "user name & password";
+const AUTH_CSV_URL    = `https://docs.google.com/spreadsheets/d/${AUTH_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(AUTH_SHEET_NAME)}`;
+
+// ─────────────────────────────────────────────────────────────────
+//  ROLE DEFINITIONS  (member-roster display roles)
+// ─────────────────────────────────────────────────────────────────
+const ROLES = [
+  {key:"presenter",          label:"Pro / Presenter",      color:"#6366f1"},
+  {key:"videoMixer",         label:"Video Mixer",           color:"#0ea5e9"},
+  {key:"sound",              label:"Sound",                 color:"#10b981"},
+  {key:"light",              label:"Light",                 color:"#f59e0b"},
+  {key:"picture",            label:"Picture",               color:"#8b5cf6"},
+  {key:"camera",             label:"Camera",                color:"#ef4444"},
+  {key:"mobileCamera",       label:"Mobile Camera",         color:"#f97316"},
+  {key:"recordedProduction", label:"Recorded Production",   color:"#a855f7"},
+  {key:"print",              label:"Print",                 color:"#ec4899"},
+  {key:"socialMedia",        label:"Social Media",          color:"#14b8a6"},
+];
+
+// ─────────────────────────────────────────────────────────────────
+//  COLUMN → ROLE/FIELD MAP  (matches new table header exactly)
+//  Header row:  Name | Phone Number | Email | D.O.B (MMM, DD) |
+//    Media Coordinator | Sound Coordinator | Pro - Presenter |
+//    Video Mixer | Sound | Light | Picture | Camera | Mobile Camera |
+//    Recorded production | Print | Social Media |
+//    Probation Period | Non Participant | H.O.D | A.H.O.D
+// ─────────────────────────────────────────────────────────────────
+const COL_ROLE_MAP = [
+  {patterns:["pro - presenter","pro-presenter","presenter","host"],  key:"presenter"},
+  {patterns:["video mixer","video mix","vmix"],                       key:"videoMixer"},
+  {patterns:["mobile camera","mobile cam"],                           key:"mobileCamera"},
+  {patterns:["camera"],                                               key:"camera"},
+  {patterns:["sound"],                                                key:"sound"},
+  {patterns:["light"],                                                key:"light"},
+  {patterns:["picture"],                                              key:"picture"},
+  {patterns:["recorded","production"],                                key:"recordedProduction"},
+  {patterns:["print"],                                                key:"print"},
+  {patterns:["social media","social"],                                key:"socialMedia"},
+];
+
+// ─────────────────────────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────────────────────────
+let MEMBERS = [];           // live from sheet
+let detectedColumns = {};   // col header → role key
+let lastSyncAt = null;
+let CREDENTIALS = [];       // [{username, passwordHash}] loaded from auth sheet
+
+const SCHEDULE_KEY = "rccg_media_schedules";
+const AUTH_SESSION_KEY = "rccg_auth_session";
+
+const state = {
+  activeSection:"dashboard",
+  schedules:{},
+  activeScheduleKey:null,
+  memberFilter:"",
+  memberRoleFilter:"all",
+  memberUnitFilter:"all",
+  memberStatusFilter:"all",
+  // Auth
+  isLoggedIn: false,
+  loggedInUser: null,
+  loginPendingAction: null,  // what to do after successful login
+};
+
+// ─────────────────────────────────────────────────────────────────
+//  CSV PARSER  (handles quoted fields with commas/newlines)
+// ─────────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", inQ = false, i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"' && text[i+1] === '"') { field += '"'; i += 2; continue; }
+      if (ch === '"') { inQ = false; i++; continue; }
+      field += ch;
+    } else {
+      if (ch === '"') { inQ = true; i++; continue; }
+      if (ch === ',') { row.push(field.trim()); field = ""; i++; continue; }
+      if (ch === '\n' || (ch === '\r' && text[i+1] === '\n')) {
+        row.push(field.trim()); rows.push(row); row = []; field = "";
+        if (ch === '\r') i++;
+        i++; continue;
+      }
+      field += ch;
+    }
+    i++;
+  }
+  if (field || row.length) { row.push(field.trim()); rows.push(row); }
+  return rows;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  COLUMN DETECTOR
+//  Scans header row and maps columns to role keys and known fields
+// ─────────────────────────────────────────────────────────────────
+function detectColumns(headers) {
+  const map = {
+    name:-1, phone:-1, email:-1, dob:-1, servicePreference:-1, note:-1,
+    hod:-1, ahod:-1, mediaCoordinator:-1, soundCoordinator:-1,
+    probation:-1, nonParticipant:-1,
+    unit:-1,
+    roles:{}
+  };
+
+  headers.forEach((h, i) => {
+    const lh = h.toLowerCase().trim();
+    if (!lh) return;
+
+    // ── Exact / high-priority matches first ──────────────────────
+    if (lh === "name" || lh === "full name" || lh === "member name")    { if(map.name===-1) map.name=i; return; }
+    if (lh.includes("phone") || lh.includes("number") || lh.includes("tel")) { map.phone=i; return; }
+    if (lh.includes("email") || lh.includes("e-mail"))                  { map.email=i; return; }
+    if (lh.includes("dob") || lh.includes("d.o.b") || lh.includes("birth")) { map.dob=i; return; }
+    if (lh.includes("service") && lh.includes("pref"))                  { map.servicePreference=i; return; }
+    if (lh.includes("note") || lh.includes("remark") || lh.includes("comment")) { map.note=i; return; }
+    if (lh.includes("unit") || lh.includes("group") || lh.includes("team"))     { map.unit=i; return; }
+
+    // ── Status columns (more-specific patterns first) ─────────────
+    if (lh.includes("a.h.o.d") || lh === "ahod")                        { map.ahod=i; return; }
+    if (lh.includes("h.o.d")   || lh === "hod")                         { map.hod=i; return; }
+    // "Media Coordinator" must come before generic "media"
+    if (lh.includes("media") && lh.includes("coord"))                   { map.mediaCoordinator=i; return; }
+    // "Sound Coordinator" must come before generic "sound"
+    if (lh.includes("sound") && lh.includes("coord"))                   { map.soundCoordinator=i; return; }
+    if (lh.includes("probation") || lh === "probation period")          { map.probation=i; return; }
+    if (lh.includes("non participant") || lh.includes("non-participant") ||
+        (lh.includes("non") && lh.includes("part")))                    { map.nonParticipant=i; return; }
+
+    // ── Role columns (check after all status columns) ─────────────
+    // "Mobile Camera" before plain "camera"
+    if (lh.includes("mobile") && lh.includes("cam"))                    { map.roles["mobileCamera"]=i; return; }
+    // "Pro - Presenter" / "Presenter"
+    if (lh.includes("presenter") || lh.startsWith("pro"))               { map.roles["presenter"]=i; return; }
+    // "Video Mixer"
+    if (lh.includes("video") && lh.includes("mix"))                     { map.roles["videoMixer"]=i; return; }
+    // "Sound" (not coordinator — already handled above)
+    if (lh === "sound" || (lh.includes("sound") && !lh.includes("coord"))) { map.roles["sound"]=i; return; }
+    if (lh.includes("light"))                                            { map.roles["light"]=i; return; }
+    if (lh.includes("picture"))                                          { map.roles["picture"]=i; return; }
+    if (lh.includes("camera"))                                           { map.roles["camera"]=i; return; }
+    if (lh.includes("recorded") || lh.includes("production"))           { map.roles["recordedProduction"]=i; return; }
+    if (lh === "print")                                                  { map.roles["print"]=i; return; }
+    if (lh.includes("social") && lh.includes("media"))                  { map.roles["socialMedia"]=i; return; }
+
+    // Fallback: generic COL_ROLE_MAP sweep
+    for (const {patterns, key} of COL_ROLE_MAP) {
+      if (patterns.some(p => lh.includes(p))) { map.roles[key] = i; return; }
+    }
+  });
+
+  // Fallback name detection
+  if (map.name === -1) {
+    headers.forEach((h, i) => { if (h.toLowerCase().includes("name") && map.name === -1) map.name = i; });
+  }
+  return map;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  SHEET → MEMBERS  converter
+// ─────────────────────────────────────────────────────────────────
+function rowsToMembers(rows) {
+  if (rows.length < 2) return [];
+  const headers = rows[0];
+  const colMap  = detectColumns(headers);
+  detectedColumns = colMap;
+  renderColumnMap(headers, colMap);
+
+  function isMarked(val) {
+    const v = (val||"").trim().toLowerCase();
+    return v !== "" && v !== "0" && v !== "no" && v !== "n" && v !== "false";
+  }
+
+  const members = [];
+  let id = 1;
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.every(c => !c)) continue;
+    const name = colMap.name >= 0 ? (row[colMap.name] || "").trim() : "";
+    if (!name) continue;
+
+    const g = (idx) => idx >= 0 ? (row[idx] || "").trim() : "";
+
+    // ── Status flags ─────────────────────────────────────────────
+    const statuses = [];
+    if (colMap.hod >= 0              && isMarked(g(colMap.hod)))              statuses.push("hod");
+    if (colMap.ahod >= 0             && isMarked(g(colMap.ahod)))             statuses.push("ahod");
+    if (colMap.mediaCoordinator >= 0 && isMarked(g(colMap.mediaCoordinator))) statuses.push("mediaCoordinator");
+    if (colMap.soundCoordinator >= 0 && isMarked(g(colMap.soundCoordinator))) statuses.push("soundCoordinator");
+    if (colMap.probation >= 0        && isMarked(g(colMap.probation)))        statuses.push("probation");
+    if (colMap.nonParticipant >= 0   && isMarked(g(colMap.nonParticipant)))   statuses.push("nonParticipant");
+
+    // ── Roles ─────────────────────────────────────────────────────
+    // RULE: If a person is a coordinator (media or sound), they can ONLY
+    //       serve in their coordinator role — no other roles allowed.
+    const isMediaCoord = statuses.includes("mediaCoordinator");
+    const isSoundCoord = statuses.includes("soundCoordinator");
+    const roles = [];
+
+    if (isMediaCoord || isSoundCoord) {
+      // Coordinators are locked to their coordinator role only
+      // (roles[] stays empty; eligibility is driven by statuses[] in scheduler)
+    } else {
+      // Regular members — read role columns normally
+      for (const [roleKey, colIdx] of Object.entries(colMap.roles)) {
+        if (colIdx >= 0 && isMarked(row[colIdx])) roles.push(roleKey);
+      }
+    }
+
+    members.push({
+      id,
+      name,
+      phone:             g(colMap.phone),
+      email:             g(colMap.email),
+      dob:               g(colMap.dob),
+      servicePreference: g(colMap.servicePreference),
+      note:              g(colMap.note),
+      unit:              g(colMap.unit),
+      roles,
+      statuses,
+      highlight: statuses.includes("hod") || statuses.includes("ahod"),
+    });
+    id++;
+  }
+  return members;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  MAIN SYNC FUNCTION — fetches CSV from Google Sheets
+// ─────────────────────────────────────────────────────────────────
+async function syncFromSheet(silent = false) {
+  setSyncState("syncing", "Syncing…");
+  if (!silent) document.getElementById("syncBtn").textContent = "⟳ Syncing…";
+
+  try {
+    const resp = await fetch(CSV_URL, { cache: "no-store" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const text = await resp.text();
+    if (!text || text.trim().length < 10) throw new Error("Empty response");
+
+    const rows    = parseCSV(text);
+    const members = rowsToMembers(rows);
+    if (members.length === 0) throw new Error("No member rows found");
+
+    MEMBERS = members;
+    lastSyncAt = new Date();
+    setSyncState("ok", `Synced ${lastSyncAt.toLocaleTimeString()}`);
+    updateSheetBadge(true, members.length);
+    if (!silent) toast(`✅ Loaded ${members.length} members from Google Sheets`, "success");
+
+    // Refresh role filter dropdown with newly detected roles
+    rebuildRoleFilter();
+    // Re-render whichever section is active
+    renderCurrentSection();
+
+  } catch (err) {
+    console.error("Sheet sync error:", err);
+    setSyncState("error", "Sync failed");
+    updateSheetBadge(false, 0);
+    if (!silent) toast("❌ Could not load sheet. Is it shared publicly? " + err.message, "error");
+    // Fall back to cached members if available
+    if (MEMBERS.length === 0) {
+      document.getElementById("membersBody").innerHTML =
+        `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--red)">
+          Could not load data from Google Sheets.<br>
+          <span style="font-size:11px;color:var(--text-muted)">Make sure the sheet is shared as "Anyone with the link → Viewer"</span>
+        </td></tr>`;
+    }
+  } finally {
+    document.getElementById("syncBtn").textContent = "🔄 Sync Now";
+  }
+}
+
+function setSyncState(state, text) {
+  const dot  = document.getElementById("syncDot");
+  const txt  = document.getElementById("syncText");
+  dot.className = "sync-dot " + state;
+  txt.textContent = text;
+  const ts = document.getElementById("lastSyncTime");
+  if (ts && lastSyncAt) ts.textContent = "Last sync: " + lastSyncAt.toLocaleTimeString();
+}
+
+function updateSheetBadge(ok, count) {
+  ["sheetBadge","settingsBadge"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = "sheet-badge" + (ok ? "" : " err");
+    el.textContent = ok ? `✓ Live — ${count} members` : "✗ Connection failed";
+  });
+}
+
+function renderColumnMap(headers, colMap) {
+  const el = document.getElementById("columnMapDisplay");
+  if (!el) return;
+  const statusLabels = {
+    hod:"H.O.D", ahod:"A.H.O.D",
+    mediaCoordinator:"Media Coordinator", soundCoordinator:"Sound Coordinator",
+    probation:"Probation", nonParticipant:"Non Participant",
+  };
+  const rows = headers.map((h,i) => {
+    if (!h.trim()) return "";
+    let type = "—";
+    if (i === colMap.name)              type = '<span style="color:var(--gold)">Name</span>';
+    else if (i === colMap.phone)        type = '<span style="color:var(--gold)">Phone</span>';
+    else if (i === colMap.dob)          type = '<span style="color:var(--gold)">Date of Birth</span>';
+    else if (i === colMap.servicePreference) type = '<span style="color:var(--gold)">Service Preference</span>';
+    else if (i === colMap.note)         type = '<span style="color:var(--gold)">Notes</span>';
+    else if (i === colMap.unit)         type = '<span style="color:#0ea5e9">Unit / Group</span>';
+    else {
+      // Check status columns
+      for (const [sKey, sLabel] of Object.entries(statusLabels)) {
+        if (colMap[sKey] === i) { type = `<span style="color:#c9a84c">${sLabel} (status)</span>`; break; }
+      }
+      // Check role columns
+      if (type === "—") {
+        for (const [roleKey, colIdx] of Object.entries(colMap.roles)) {
+          if (colIdx === i) {
+            const role = ROLES.find(r => r.key === roleKey);
+            type = role ? `<span style="color:${role.color}">${role.label}</span>` : roleKey;
+            break;
+          }
+        }
+      }
+    }
+    return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text)">${h}</span><span>${type}</span></div>`;
+  }).filter(Boolean).join("");
+  el.innerHTML = rows || '<span style="color:var(--text-muted)">No columns detected yet</span>';
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────────────────────────
+function getSundaysForQuarter(year, quarter) {
+  const sm = [[0,2],[3,5],[6,8],[9,11]][quarter-1];
+  const all = []; const d = new Date(year,0,1);
+  while (d.getDay() !== 0) d.setDate(d.getDate()+1);
+  while (d.getFullYear() === year) {
+    if (d.getMonth()>=sm[0] && d.getMonth()<=sm[1]) all.push(new Date(d));
+    d.setDate(d.getDate()+7);
+  }
+  return all;
+}
+function formatDate(iso){
+  const d=new Date(iso+"T12:00:00");
+  return d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+}
+function quarterLabel(q){return["Q1 (Jan–Mar)","Q2 (Apr–Jun)","Q3 (Jul–Sep)","Q4 (Oct–Dec)"][q-1]}
+// Full schedule name: "1st QTY 2026 Schedule"
+function scheduleTabName(year, quarter) {
+  const ordinals = ["1st","2nd","3rd","4th"];
+  return `${ordinals[quarter-1]} QTY ${year} Schedule`;
+}
+function scheduleKey(year, quarter) { return `${year}-Q${quarter}`; }
+function getMemberById(id){return MEMBERS.find(m=>m.id===id)||null}
+function initials(name){return name.split(" ").slice(0,2).map(w=>w[0]).join("").toUpperCase()}
+
+function toast(msg,type="info"){
+  const icons={success:"✅",error:"❌",info:"✦"};
+  const t=document.createElement("div");
+  t.className=`toast ${type}`;
+  t.innerHTML=`<span>${icons[type]}</span><span>${msg}</span>`;
+  document.getElementById("toastContainer").appendChild(t);
+  setTimeout(()=>t.remove(),4000);
+}
+
+function rebuildRoleFilter() {
+  // Role filter
+  const sel = document.getElementById("roleFilter");
+  while (sel.options.length > 1) sel.remove(1);
+  ROLES.forEach(r => {
+    if (MEMBERS.some(m => m.roles.includes(r.key))) {
+      const opt = document.createElement("option");
+      opt.value = r.key; opt.textContent = r.label;
+      sel.appendChild(opt);
+    }
+  });
+  // Unit filter — build from unique unit values in data
+  const unitSel = document.getElementById("unitFilter");
+  while (unitSel.options.length > 1) unitSel.remove(1);
+  const units = [...new Set(MEMBERS.map(m => m.unit).filter(Boolean))].sort();
+  units.forEach(u => {
+    const opt = document.createElement("option");
+    opt.value = u; opt.textContent = u;
+    unitSel.appendChild(opt);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  NAVIGATION
+// ─────────────────────────────────────────────────────────────────
+function navigate(section) {
+  state.activeSection = section;
+  document.querySelectorAll(".page-section").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
+  const sec = document.querySelector(`[data-section="${section}"]`);
+  if (sec) sec.classList.add("active");
+  const nav = document.querySelector(`.nav-item[data-nav="${section}"]`);
+  if (nav) nav.classList.add("active");
+  const titles={dashboard:"Dashboard",members:"Member Roster",schedule:"Schedule",workload:"Workload Analysis",settings:"Settings"};
+  document.getElementById("topbarTitle").textContent = titles[section] || section;
+  renderCurrentSection();
+  document.getElementById("sidebar").classList.remove("open");
+}
+document.querySelectorAll(".nav-item").forEach(n=>n.addEventListener("click",()=>navigate(n.dataset.nav)));
+
+function renderCurrentSection() {
+  const s = state.activeSection;
+  if (s==="dashboard") renderDashboard();
+  if (s==="members")   renderMembers();
+  if (s==="schedule")  renderScheduleSection();
+  if (s==="workload")  renderWorkload();
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  DASHBOARD
+// ─────────────────────────────────────────────────────────────────
+function renderDashboard() {
+  document.getElementById("statMembers").textContent  = MEMBERS.length || "—";
+  document.getElementById("statSchedules").textContent = Object.keys(state.schedules).length;
+
+  const today = new Date();
+  const q = Math.ceil((today.getMonth()+1)/3);
+  const upcoming = getSundaysForQuarter(today.getFullYear(), q).filter(d=>d>=today).slice(0,5);
+  const tbody = document.getElementById("upcomingBody");
+  tbody.innerHTML = "";
+  upcoming.forEach(sunday => {
+    const iso = sunday.toISOString().slice(0,10);
+    let found = null;
+    for (const key of Object.keys(state.schedules)) {
+      const e = state.schedules[key].schedule.find(x=>x.date===iso);
+      if (e) { found=e; break; }
+    }
+    const presenter = found ? getMemberById(found.assignments.presenter) : null;
+    const sound     = found ? getMemberById(found.assignments.sound)     : null;
+    const camera    = found ? getMemberById(found.assignments.camera)    : null;
+    const cell = (m,color) => m
+      ? `<div class="assignee"><div class="assignee-dot" style="background:${color}"></div>${m.name}</div>`
+      : `<span class="unassigned">Not assigned</span>`;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td class="date-cell">${formatDate(iso)}</td><td>${cell(presenter,"#6366f1")}</td><td>${cell(sound,"#10b981")}</td><td>${cell(camera,"#ef4444")}</td>`;
+    tbody.appendChild(tr);
+  });
+  if (!upcoming.length) tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">No upcoming Sundays found</td></tr>`;
+
+  // Birthdays — match month abbreviations: Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
+  const MONTH_ABBRS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+  const thisMonth = MONTH_ABBRS[today.getMonth()];
+  const bdays = MEMBERS.filter(m => m.dob && m.dob.toLowerCase().includes(thisMonth));
+  document.getElementById("birthdayCount").textContent = bdays.length;
+  document.getElementById("birthdayList").innerHTML = bdays.length
+    ? bdays.map(m=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px"><span>${m.name}</span><span style="color:var(--gold)">${m.dob}</span></div>`).join("")
+    : `<p style="color:var(--text-muted);font-size:12px">No birthdays this month</p>`;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  MEMBERS
+// ─────────────────────────────────────────────────────────────────
+// Status config — label + badge class
+const STATUS_CONFIG = {
+  hod:              { label:"H.O.D",              cls:"status-hod" },
+  ahod:             { label:"A.H.O.D",            cls:"status-ahod" },
+  mediaCoordinator: { label:"Media Coordinator",  cls:"status-media-coord" },
+  soundCoordinator: { label:"Sound Coordinator",  cls:"status-sound-coord" },
+  probation:        { label:"Probation",          cls:"status-probation" },
+  nonParticipant:   { label:"Non Participant",    cls:"status-non-participant" },
+};
+
+function renderMembers() {
+  const q   = state.memberFilter.toLowerCase();
+  const rf  = state.memberRoleFilter;
+  const uf  = state.memberUnitFilter  || "all";
+  const sf  = state.memberStatusFilter|| "all";
+
+  const filtered = MEMBERS.filter(m => {
+    if (!m.name.toLowerCase().includes(q)) return false;
+    if (rf !== "all" && !m.roles.includes(rf)) return false;
+    if (uf !== "all" && m.unit !== uf) return false;
+    if (sf !== "all") {
+      if (sf === "active") {
+        // "active" = has no special status flags
+        if (m.statuses && m.statuses.length > 0) return false;
+      } else {
+        if (!m.statuses || !m.statuses.includes(sf)) return false;
+      }
+    }
+    return true;
+  });
+
+  const tbody = document.getElementById("membersBody");
+  tbody.innerHTML = "";
+
+  if (!filtered.length) {
+    tbody.innerHTML = MEMBERS.length === 0
+      ? `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted)">Loading from Google Sheets…</td></tr>`
+      : `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted)">No members match your filters</td></tr>`;
+  } else {
+    filtered.forEach(m => {
+      const tr = document.createElement("tr");
+      if (m.highlight) tr.classList.add("highlight-row");
+
+      // Status badges
+      const statusHTML = (m.statuses && m.statuses.length)
+        ? m.statuses.map(s => {
+            const cfg = STATUS_CONFIG[s];
+            return cfg ? `<span class="status-badge ${cfg.cls}">${cfg.label}</span>` : "";
+          }).join(" ")
+        : `<span style="font-size:11px;color:var(--text-muted)">Active</span>`;
+
+      // Unit pill
+      const unitHTML = m.unit
+        ? `<span class="unit-pill">${m.unit}</span>`
+        : `<span style="color:var(--text-muted);font-size:11px">—</span>`;
+
+      // Role badges
+      const rolesHTML = (m.roles || []).map(r => {
+        const role = ROLES.find(x => x.key === r);
+        return role ? `<span class="role-badge" style="color:${role.color};background:${role.color}18">${role.label}</span>` : "";
+      }).join("");
+
+      tr.innerHTML = `
+        <td>
+          <div style="display:flex;align-items:center;gap:9px">
+            <div class="avatar">${initials(m.name)}</div>
+            <div>
+              <div>${m.name}</div>
+              ${m.note ? `<div style="font-size:10px;color:var(--text-muted);margin-top:1px">${m.note}</div>` : ""}
+            </div>
+          </div>
+        </td>
+        <td>${statusHTML}</td>
+        <td>${unitHTML}</td>
+        <td style="color:var(--text-muted);white-space:nowrap">${m.phone||"—"}</td>
+        <td style="color:var(--text-muted)">${m.email ? `<a href="mailto:${m.email}" style="color:var(--gold);text-decoration:none">${m.email}</a>` : "—"}</td>
+        <td style="color:var(--text-muted);white-space:nowrap">${m.dob||"—"}</td>
+        <td>${rolesHTML||'<span style="color:var(--text-muted);font-size:11px">—</span>'}</td>
+        <td style="color:var(--text-muted)">${m.servicePreference||"—"}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  document.getElementById("memberCount").textContent = `${filtered.length} of ${MEMBERS.length} members`;
+}
+
+function clearMemberFilters() {
+  document.getElementById("memberSearch").value = "";
+  document.getElementById("roleFilter").value   = "all";
+  document.getElementById("unitFilter").value   = "all";
+  document.getElementById("statusFilter").value = "all";
+  state.memberFilter       = "";
+  state.memberRoleFilter   = "all";
+  state.memberUnitFilter   = "all";
+  state.memberStatusFilter = "all";
+  renderMembers();
+}
+
+document.getElementById("memberSearch").addEventListener("input",e=>{state.memberFilter=e.target.value;renderMembers();});
+document.getElementById("roleFilter").addEventListener("change",e=>{state.memberRoleFilter=e.target.value;renderMembers();});
+document.getElementById("unitFilter").addEventListener("change",e=>{state.memberUnitFilter=e.target.value;renderMembers();});
+document.getElementById("statusFilter").addEventListener("change",e=>{state.memberStatusFilter=e.target.value;renderMembers();});
+
+// ─────────────────────────────────────────────────────────────────
+//  PYODIDE — Python scheduler integration
+// ─────────────────────────────────────────────────────────────────
+let pyodide    = null;
+let pyReady    = false;
+let pyLoading  = false;
+
+// Role definitions mirror scheduler.py (used for rendering)
+const SCHEDULE_ROLES = [
+  {key:"mediaCoordinator", label:"Media Coordinator", color:"#c9a84c",  special:"mediaCoordinator"},
+  {key:"videoMixer",       label:"Video Mixer",        color:"#0ea5e9",  special:null},
+  {key:"camera1a",         label:"Camera 1 (A)",       color:"#ef4444",  special:null},
+  {key:"camera1b",         label:"Camera 1 (B)",       color:"#ef4444",  special:null},
+  {key:"camera2a",         label:"Camera 2 (A)",       color:"#f97316",  special:null},
+  {key:"camera2b",         label:"Camera 2 (B)",       color:"#f97316",  special:null},
+  {key:"mobileCamera",     label:"Mobile Camera",      color:"#ec4899",  special:null},
+  {key:"picture",          label:"Picture",            color:"#8b5cf6",  special:null},
+  {key:"soundCoordinator", label:"Sound Coordinator",  color:"#10b981",  special:"soundCoordinator"},
+  {key:"sounda",           label:"Sound (A)",          color:"#14b8a6",  special:null},
+  {key:"soundb",           label:"Sound (B)",          color:"#14b8a6",  special:null},
+  {key:"light",            label:"Light",              color:"#f59e0b",  special:null},
+];
+
+function setPyStatus(text, done=false) {
+  const el  = document.getElementById("pyodideStatus");
+  const txt = document.getElementById("pyodideStatusText");
+  if (!el) return;
+  if (done) { el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  txt.textContent = text;
+}
+
+async function initPyodide() {
+  if (pyReady || pyLoading) return;
+  pyLoading = true;
+  setPyStatus("Loading Python runtime (Pyodide)… (~5 MB, first visit only)");
+  try {
+    pyodide = await loadPyodide();
+    // Fetch and load our scheduler.py
+    setPyStatus("Loading RCCG scheduler module…");
+    const resp = await fetch("scheduler.py?" + Date.now());
+    const code = await resp.text();
+    await pyodide.runPythonAsync(code);
+    pyReady   = true;
+    pyLoading = false;
+    setPyStatus("", true);
+    toast("Python scheduler ready", "success");
+  } catch(e) {
+    pyLoading = false;
+    setPyStatus("⚠ Python scheduler failed to load: " + e.message);
+    console.error("Pyodide init error:", e);
+  }
+}
+
+async function runPythonScheduler(year, quarter) {
+  if (!pyReady) throw new Error("Python scheduler is not ready yet");
+  const membersJson = JSON.stringify(MEMBERS);
+  const resultJson  = await pyodide.runPythonAsync(
+    `run(${year}, ${quarter}, '${membersJson.replace(/'/g,"\\'")}' )`
+  );
+  return JSON.parse(resultJson);
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  SCHEDULE SECTION  — edit mode state
+// ─────────────────────────────────────────────────────────────────
+let editMode = false;
+
+function toggleEditMode() {
+  if (!requireAuth("editSchedule")) return;
+  editMode = !editMode;
+  const btn   = document.getElementById("editToggleBtn");
+  const label = document.getElementById("editModeLabel");
+  if (editMode) {
+    btn.textContent   = "✓ Save & Exit Edit";
+    btn.className     = "btn btn-sm btn-primary";
+    label.style.display = "inline";
+    if (state.activeScheduleKey) pushScheduleToSheet(state.activeScheduleKey);
+  } else {
+    btn.textContent   = "✏ Edit Schedule";
+    btn.className     = "btn btn-sm btn-secondary";
+    label.style.display = "none";
+  }
+  renderScheduleSection();
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  ELIGIBLE MEMBERS PER ROLE  (JS mirrors Python rules for dropdowns)
+// ─────────────────────────────────────────────────────────────────
+const EXCLUDED_STATUSES = new Set(["hod","ahod","nonParticipant","probation"]);
+const CAMERA_ROLE_KEYS  = new Set(["camera1a","camera1b","camera2a","camera2b","mobileCamera","picture"]);
+const SOUND_ROLE_KEYS   = new Set(["sounda","soundb"]);
+
+function getEligibleForRole(roleKey, currentSchedule, currentEntryIndex) {
+  // Members already used in ANY Sunday in this schedule (except the current row being edited)
+  const usedIds = new Set();
+  if (currentSchedule) {
+    currentSchedule.forEach((entry, i) => {
+      if (i === currentEntryIndex) return;
+      Object.values(entry.assignments || {}).forEach(mid => { if (mid) usedIds.add(mid); });
+    });
+  }
+
+  // Base: no excluded statuses
+  let pool = MEMBERS.filter(m =>
+    !m.statuses || !m.statuses.some(s => EXCLUDED_STATUSES.has(s))
+  );
+
+  // Role-specific eligibility
+  if (roleKey === "mediaCoordinator") {
+    pool = pool.filter(m => m.statuses && m.statuses.includes("mediaCoordinator"));
+  } else if (roleKey === "soundCoordinator") {
+    pool = pool.filter(m => m.statuses && m.statuses.includes("soundCoordinator"));
+  } else if (CAMERA_ROLE_KEYS.has(roleKey)) {
+    pool = pool.filter(m => m.roles && m.roles.includes("camera"));
+  } else if (SOUND_ROLE_KEYS.has(roleKey)) {
+    pool = pool.filter(m => m.roles && m.roles.includes("sound"));
+  } else if (roleKey === "videoMixer") {
+    pool = pool.filter(m => m.roles && m.roles.includes("videoMixer"));
+  } else if (roleKey === "light") {
+    pool = pool.filter(m => m.roles && m.roles.includes("light"));
+  }
+
+  // Exclude already used (but allow the currently assigned person to remain selectable)
+  return pool.filter(m => !usedIds.has(m.id));
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  SCHEDULE SECTION RENDERER
+// ─────────────────────────────────────────────────────────────────
+function renderScheduleSection() {
+  const container = document.getElementById("scheduleContent");
+  const keys = Object.keys(state.schedules).sort();
+
+  // Show/hide edit button
+  const editBtn = document.getElementById("editToggleBtn");
+  if (editBtn) editBtn.style.display = keys.length ? "inline-flex" : "none";
+
+  if (!keys.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📅</div><h3>No schedules yet</h3><p>Click "Generate Schedule" to create your first quarterly schedule.</p></div>`;
+    return;
+  }
+  if (!state.activeScheduleKey || !state.schedules[state.activeScheduleKey]) {
+    state.activeScheduleKey = keys[keys.length - 1];
+  }
+
+  // Quarter tabs
+  const tabs = document.createElement("div"); tabs.className = "quarter-tabs";
+  keys.forEach(key => {
+    const {year, quarter} = state.schedules[key];
+    const tab = document.createElement("div");
+    tab.className = `q-tab${key === state.activeScheduleKey ? " active" : ""}`;
+    tab.textContent = scheduleTabName(year, quarter);
+    tab.onclick = () => { state.activeScheduleKey = key; renderScheduleSection(); };
+    tabs.appendChild(tab);
+  });
+
+  const {schedule} = state.schedules[state.activeScheduleKey];
+  const schedKey   = state.activeScheduleKey;
+
+  // Edit mode banner
+  let editBanner = "";
+  if (editMode) {
+    editBanner = `<div class="edit-mode-banner">
+      <span>✏ <strong>Edit Mode</strong> — Use dropdowns to change assignments. A person can only appear once per schedule.</span>
+      <div style="display:flex;gap:7px">
+        <button class="btn btn-sm btn-primary" onclick="saveAndPushSchedule('${schedKey}')">☁ Update Google Sheet</button>
+        <button class="btn btn-sm btn-secondary" onclick="toggleEditMode()">✓ Done Editing</button>
+      </div>
+    </div>`;
+  }
+
+  const card = document.createElement("div"); card.className = "card";
+  const hdr  = document.createElement("div"); hdr.className  = "card-header";
+  hdr.innerHTML = `<span class="card-title">📋 Service Schedule — ${state.activeScheduleKey}</span>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-secondary" onclick="window.print()">🖨 Print</button>
+      <button class="btn btn-sm btn-primary" onclick="saveAndPushSchedule('${schedKey}')" title="Publish to Google Sheets so all users see this schedule">☁ Publish to Sheet</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteSchedule('${schedKey}')">🗑 Delete</button>
+    </div>`;
+  card.appendChild(hdr);
+
+  const wrap  = document.createElement("div"); wrap.className = "table-wrap";
+  const table = document.createElement("table");
+
+  // Build header
+  const roleHeaders = SCHEDULE_ROLES.map(r =>
+    `<th style="border-left:2px solid ${r.color}22;min-width:120px">${r.label}</th>`
+  ).join("");
+  table.innerHTML = `<thead><tr>
+    <th style="min-width:110px">Date</th>
+    <th style="min-width:140px">Service</th>
+    <th style="min-width:180px">Week Services</th>
+    ${roleHeaders}
+    <th style="min-width:140px">Notes</th>
+  </tr></thead><tbody></tbody>`;
+
+  const tbody = table.querySelector("tbody");
+
+  schedule.forEach((entry, rowIdx) => {
+    const tr = document.createElement("tr");
+
+    // Date cell
+    const dateCell = document.createElement("td");
+    dateCell.className = "date-cell";
+    dateCell.textContent = formatDate(entry.date);
+    tr.appendChild(dateCell);
+
+    // Service name cell
+    const svcCell = document.createElement("td");
+    svcCell.className = "svc-name-cell";
+    const isAnointing = (entry.serviceName || "").includes("Anointing");
+    svcCell.innerHTML = `<span class="svc-tag ${isAnointing ? 'anointing' : 'celebration'}">${entry.serviceName || "Celebration Service"}</span>`;
+    tr.appendChild(svcCell);
+
+    // Week services cell
+    const wkCell = document.createElement("td");
+    const wkSvcs = entry.weekServices || [];
+    if (wkSvcs.length) {
+      wkCell.innerHTML = wkSvcs.map(ws =>
+        `<span class="week-svc-badge">${ws.icon} ${ws.label}<br><span style="font-size:9px;opacity:.75">${ws.dayName}</span></span>`
+      ).join(" ");
+    } else {
+      wkCell.innerHTML = `<span style="color:var(--text-muted);font-size:11px">No mid-week services</span>`;
+    }
+    wkCell.innerHTML += `<div style="font-size:9px;color:var(--text-muted);margin-top:3px">Sunday team responsible for week</div>`;
+    tr.appendChild(wkCell);
+
+    // Role assignment cells
+    SCHEDULE_ROLES.forEach(role => {
+      const td = document.createElement("td");
+      const assignedId = entry.assignments ? entry.assignments[role.key] : null;
+      const member     = assignedId ? getMemberById(assignedId) : null;
+
+      if (editMode) {
+        // Dropdown for editing
+        const eligible = getEligibleForRole(role.key, schedule, rowIdx);
+        // Always include currently assigned member even if "used elsewhere" (they are editing this slot)
+        const currentlyAssigned = member;
+        const options = currentlyAssigned && !eligible.find(m => m.id === currentlyAssigned.id)
+          ? [currentlyAssigned, ...eligible] : eligible;
+
+        const sel = document.createElement("select");
+        sel.className = "edit-cell-select";
+        sel.innerHTML = `<option value="">— Unassigned —</option>` +
+          options.map(m => `<option value="${m.id}" ${m.id === assignedId ? "selected" : ""}>${m.name}</option>`).join("");
+        sel.onchange = () => {
+          const newId = sel.value ? parseInt(sel.value) : null;
+          state.schedules[schedKey].schedule[rowIdx].assignments[role.key] = newId;
+          saveSchedules();
+          // Re-render to update availability across dropdowns
+          renderScheduleSection();
+        };
+        td.appendChild(sel);
+      } else {
+        // Read-only view
+        if (member) {
+          td.innerHTML = `<div class="assignee"><div class="assignee-dot" style="background:${role.color}"></div>${member.name}</div>`;
+        } else {
+          td.innerHTML = `<span class="unassigned">—</span>`;
+        }
+      }
+      tr.appendChild(td);
+    });
+
+    // Notes cell
+    const notesTd = document.createElement("td");
+    const notesInput = document.createElement("input");
+    notesInput.className   = "note-input";
+    notesInput.placeholder = "Add note…";
+    notesInput.value       = entry.notes || "";
+    notesInput.onchange    = () => {
+      state.schedules[schedKey].schedule[rowIdx].notes = notesInput.value;
+      saveSchedules();
+    };
+    notesTd.appendChild(notesInput);
+    tr.appendChild(notesTd);
+
+    tbody.appendChild(tr);
+  });
+
+  wrap.appendChild(table);
+  card.appendChild(wrap);
+
+  container.innerHTML = editBanner;
+  container.appendChild(tabs);
+  container.appendChild(card);
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  GOOGLE SHEET WRITE-BACK
+//  Two-step publish so ALL users see the new schedule on load:
+//    Step 1: saveAllSchedules  → writes JSON blob to _schedules_json tab
+//                                 This is what every user reads on boot.
+//    Step 2: saveSchedule      → writes human-readable formatted tab
+//                                 This is for viewing/printing in the sheet.
+//
+//  WHY fetch needs special handling for Apps Script:
+//  Apps Script Web Apps redirect POST requests to a unique execution URL.
+//  The browser follows the redirect but changes POST → GET, losing the body.
+//  Fix: send the payload as a query-string parameter on the URL so it
+//  survives the redirect, AND as the POST body for direct hits.
+// ─────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────
+//  APPS SCRIPT COMMUNICATION
+//
+//  Uses GET with payload as a URL parameter — NOT POST.
+//
+//  Why GET instead of POST:
+//  Apps Script redirects POST requests (302). When the browser follows
+//  the redirect it switches to GET and drops the body, so the payload
+//  is lost. GET requests don't have this problem — the query string
+//  survives the redirect intact. GET is also a "simple request" so
+//  there is no CORS preflight, which fixes the "Network / CORS error".
+// ─────────────────────────────────────────────────────────────────
+async function appsScriptCall(baseUrl, payload) {
+  // Encode the entire payload as a URL parameter so it survives redirects
+  const params = new URLSearchParams();
+  params.set("action",  payload.action || "");
+  params.set("payload", JSON.stringify(payload));
+
+  const resp = await fetch(baseUrl + "?" + params.toString(), {
+    method:   "GET",
+    redirect: "follow",
+    cache:    "no-store",
+  });
+
+  const text = await resp.text();
+  try {
+    const data = JSON.parse(text);
+    if (data.ok === false) throw new Error(data.error || JSON.stringify(data));
+    return data;
+  } catch(e) {
+    if (e.message.startsWith("{") || e.message.includes("error")) throw e;
+    throw new Error("Apps Script returned unexpected response: " + text.slice(0, 300));
+  }
+}
+
+async function pushScheduleToSheet(key, askBeforeOverwrite=false) {
+  const url = localStorage.getItem("rccg_apps_script_url") || "";
+  if (!url) {
+    toast("⚠ Apps Script URL not set — go to Settings to add it so everyone can see this schedule.", "error");
+    return false;
+  }
+  const sched = state.schedules[key];
+  if (!sched) return false;
+
+  const tabName = scheduleTabName(sched.year, sched.quarter);
+
+  if (askBeforeOverwrite) {
+    try {
+      const check = await fetch(url + "?action=checkTab&tabName=" + encodeURIComponent(tabName), { cache:"no-store" });
+      const cd = await check.json();
+      if (cd.exists && !confirm(`"${tabName}" already exists in Google Sheets.\n\nOverwrite it?`)) return false;
+    } catch(e) { /* proceed anyway */ }
+  }
+
+  toast(`☁ Publishing "${tabName}" to Google Sheets…`, "info");
+
+  // Step 1 — save JSON blob (what all users load on boot). MUST succeed.
+  try {
+    await appsScriptCall(url, { action: "saveAllSchedules", schedules: state.schedules });
+  } catch(e) {
+    toast("❌ Publish failed — " + e.message, "error");
+    console.error("saveAllSchedules:", e);
+    return false;
+  }
+
+  // Step 2 — write human-readable tab in the sheet (non-fatal)
+  try {
+    await appsScriptCall(url, { action: "saveSchedule", tabName, data: { ...sched, members: MEMBERS } });
+  } catch(e) {
+    toast(`⚠ Shared with all users ✓, but formatted tab failed: ${e.message}`, "info");
+    return true;
+  }
+
+  toast(`✅ "${tabName}" published — all users will see it on next load`, "success");
+  return true;
+}
+
+async function saveAndPushSchedule(key) {
+  if (!requireAuth("editSchedule")) return;
+  saveSchedules();
+  await pushScheduleToSheet(key, true); // ask before overwriting existing tab
+}
+
+function updateNote(key, idx, val) {
+  state.schedules[key].schedule[idx].notes = val;
+  saveSchedules();
+}
+function deleteSchedule(key) {
+  if (!requireAuth("deleteSchedule", key)) return;
+  confirmDeleteSchedule(key);
+}
+async function confirmDeleteSchedule(key) {
+  if (!confirm("Delete this schedule? This cannot be undone.")) return;
+  const url = localStorage.getItem("rccg_apps_script_url") || "";
+  if (url) {
+    try { await appsScriptCall(url, { action: "deleteSchedule", key }); }
+    catch(e) { console.warn("Delete from sheet failed:", e); }
+  }
+  delete state.schedules[key]; saveSchedules(); state.activeScheduleKey = null;
+  toast("Schedule deleted", "success"); renderScheduleSection();
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  WORKLOAD
+// ─────────────────────────────────────────────────────────────────
+function renderWorkload() {
+  const container=document.getElementById("workloadContent");
+  const counts={}; MEMBERS.forEach(m=>counts[m.id]=0);
+  for(const key of Object.keys(state.schedules))
+    for(const entry of state.schedules[key].schedule)
+      for(const r of ROLES){const mid=entry.assignments[r.key];if(mid&&counts[mid]!==undefined)counts[mid]++;}
+  const sorted=[...MEMBERS].map(m=>({...m,count:counts[m.id]})).sort((a,b)=>b.count-a.count);
+  const maxCount=Math.max(...sorted.map(m=>m.count),1);
+  container.innerHTML=`
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-header"><span class="card-title">📊 Assignment Frequency</span></div>
+      <div class="card-body">
+        ${sorted.map(m=>`<div class="workload-bar-wrap">
+          <div class="workload-name" title="${m.name}">${m.name}</div>
+          <div class="workload-bar-track"><div class="workload-bar" style="width:${(m.count/maxCount*100).toFixed(1)}%"></div></div>
+          <div class="workload-count">${m.count}</div>
+        </div>`).join("")}
+        ${!sorted.length||sorted.every(m=>m.count===0)?'<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px 0">Generate schedules to see workload data.</p>':""}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">🎯 Role Coverage</span></div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px">
+          ${ROLES.map(r=>{const n=MEMBERS.filter(m=>m.roles.includes(r.key)).length;return`<div style="background:var(--surface2);border-radius:var(--radius);padding:12px 14px;border-left:3px solid ${r.color}"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">${r.label}</div><div style="font-size:22px;font-weight:700;color:${r.color}">${n}</div><div style="font-size:10px;color:var(--text-muted)">eligible members</div></div>`;}).join("")}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  AUTH SYSTEM
+// ─────────────────────────────────────────────────────────────────
+
+// SHA-256 hash using Web Crypto API (built into all modern browsers)
+async function sha256(message) {
+  const msgBuffer  = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray  = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// Fetch credentials from the Google Sheet
+async function loadCredentials() {
+  try {
+    const resp = await fetch(AUTH_CSV_URL, { cache: "no-store" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const text = await resp.text();
+    const rows = parseCSV(text);
+    if (rows.length < 2) return [];
+
+    const headers = rows[0].map(h => h.toLowerCase().trim());
+    const userCol = headers.findIndex(h => h.includes("user"));
+    const passCol = headers.findIndex(h => h.includes("pass"));
+    if (userCol < 0 || passCol < 0) {
+      console.warn("Auth sheet: could not find User Name / Password columns");
+      return [];
+    }
+
+    const creds = [];
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      const username = (row[userCol] || "").trim();
+      const password = (row[passCol] || "").trim();
+      if (!username || !password) continue;
+      // Support both plain-text passwords and pre-hashed (64-char hex = SHA-256)
+      const isHashed = /^[a-f0-9]{64}$/.test(password);
+      creds.push({ username, password, isHashed });
+    }
+    return creds;
+  } catch(e) {
+    console.error("Failed to load credentials:", e);
+    return [];
+  }
+}
+
+// Validate login — fetches fresh credentials each time for live updates
+async function validateLogin(username, password) {
+  const creds = await loadCredentials();
+  if (!creds.length) throw new Error("Could not load credentials. Check the auth sheet is shared publicly.");
+
+  const inputHash = await sha256(password);
+
+  for (const cred of creds) {
+    const usernameMatch = cred.username.toLowerCase() === username.toLowerCase().trim();
+    if (!usernameMatch) continue;
+    // Compare: if stored value is already a hash compare hashes; else compare hash to hash of stored plain text
+    const storedHash = cred.isHashed ? cred.password : await sha256(cred.password);
+    if (storedHash === inputHash) return cred.username;  // return canonical username
+  }
+  return null; // no match
+}
+
+// Session persistence — survives page refresh within the same browser session
+function saveSession(username) {
+  try { sessionStorage.setItem(AUTH_SESSION_KEY, username); } catch(e) {}
+}
+function loadSession() {
+  try { return sessionStorage.getItem(AUTH_SESSION_KEY); } catch(e) { return null; }
+}
+function clearSession() {
+  try { sessionStorage.removeItem(AUTH_SESSION_KEY); } catch(e) {}
+}
+
+function setAuthState(username) {
+  state.isLoggedIn   = !!username;
+  state.loggedInUser = username || null;
+  const pill = document.getElementById("authPill");
+  if (username) {
+    pill.className = "auth-pill authed";
+    pill.innerHTML = `✓ ${username} <span style="opacity:.6;cursor:pointer;margin-left:4px" onclick="logout()" title="Sign out">✕</span>`;
+    pill.title = "Click ✕ to sign out";
+  } else {
+    pill.className = "auth-pill unauthed";
+    pill.innerHTML = "🔒 Not logged in";
+    pill.title = "";
+  }
+}
+
+function logout() {
+  clearSession();
+  setAuthState(null);
+  toast("Signed out", "info");
+}
+
+// ── Login modal controls ─────────────────────────────────────────
+function openLoginModal(pendingAction) {
+  state.loginPendingAction = pendingAction || null;
+  document.getElementById("loginUsername").value = "";
+  document.getElementById("loginPassword").value = "";
+  document.getElementById("loginError").classList.remove("show");
+  document.getElementById("loginBtn").textContent = "Sign In";
+  document.getElementById("loginBtn").disabled = false;
+  document.getElementById("loginModal").classList.add("open");
+  setTimeout(() => document.getElementById("loginUsername").focus(), 100);
+}
+function closeLoginModal() {
+  document.getElementById("loginModal").classList.remove("open");
+  state.loginPendingAction = null;
+}
+function togglePasswordVisibility() {
+  const inp = document.getElementById("loginPassword");
+  inp.type = inp.type === "password" ? "text" : "password";
+}
+
+async function submitLogin() {
+  const username = document.getElementById("loginUsername").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  const errEl    = document.getElementById("loginError");
+  const btn      = document.getElementById("loginBtn");
+
+  errEl.classList.remove("show");
+  if (!username || !password) {
+    errEl.textContent = "Please enter both username and password.";
+    errEl.classList.add("show"); return;
+  }
+
+  btn.textContent = "Checking…"; btn.disabled = true;
+
+  try {
+    const validUser = await validateLogin(username, password);
+    if (validUser) {
+      saveSession(validUser);
+      setAuthState(validUser);
+      closeLoginModal();
+      toast(`Welcome, ${validUser}!`, "success");
+      // Execute the action that triggered login
+      if (state.loginPendingAction === "generate") {
+        openGenerateModal();
+      } else if (state.loginPendingAction === "deleteSchedule" && state._pendingDeleteKey) {
+        confirmDeleteSchedule(state._pendingDeleteKey);
+        state._pendingDeleteKey = null;
+      } else if (state.loginPendingAction === "editSchedule") {
+        toggleEditMode();
+      }
+      state.loginPendingAction = null;
+    } else {
+      errEl.textContent = "Incorrect username or password. Please try again.";
+      errEl.classList.add("show");
+      document.getElementById("loginPassword").value = "";
+      document.getElementById("loginPassword").focus();
+      btn.textContent = "Sign In"; btn.disabled = false;
+    }
+  } catch(e) {
+    errEl.textContent = e.message || "Login failed. Please try again.";
+    errEl.classList.add("show");
+    btn.textContent = "Sign In"; btn.disabled = false;
+  }
+}
+
+// Guard — call this before any privileged action
+function requireAuth(action, extra) {
+  if (state.isLoggedIn) return true;
+  if (extra) state._pendingDeleteKey = extra;
+  openLoginModal(action);
+  return false;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  GENERATE MODAL
+// ─────────────────────────────────────────────────────────────────
+function openGenerateModal() {
+  if (!MEMBERS.length) { toast("Wait for member data to load first","error"); return; }
+  if (!requireAuth("generate")) return;
+  document.getElementById("genYear").value = new Date().getFullYear();
+  document.getElementById("generateModal").classList.add("open");
+  // Pre-load Pyodide in the background if not ready
+  if (!pyReady && !pyLoading) initPyodide();
+}
+function closeGenerateModal(){ document.getElementById("generateModal").classList.remove("open"); }
+
+async function submitGenerate() {
+  if (!requireAuth("generate")) return;
+  const year    = parseInt(document.getElementById("genYear").value);
+  const quarter = parseInt(document.getElementById("genQuarter").value);
+  if (isNaN(year)||year<2020||year>2040) { toast("Please enter a valid year (2020–2040)","error"); return; }
+
+  const key = `${year}-Q${quarter}`;
+  if (state.schedules[key] && !confirm(`A schedule for ${scheduleTabName(year,quarter)} already exists in the browser.\nOverwrite it?`)) return;
+
+  const genBtn = document.querySelector("#generateModal .btn-primary");
+  genBtn.textContent = "⟳ Generating…"; genBtn.disabled = true;
+
+  try {
+    if (!pyReady) {
+      genBtn.textContent = "⟳ Loading Python…";
+      await initPyodide();
+      if (!pyReady) throw new Error("Python scheduler failed to load. Check the console.");
+    }
+    genBtn.textContent = "⟳ Running scheduler…";
+    const result = await runPythonScheduler(year, quarter);
+
+    state.schedules[key] = result;
+    state.activeScheduleKey = key;
+    saveSchedules();
+
+    genBtn.textContent = "⟳ Publishing to Sheet…";
+    closeGenerateModal();
+    navigate("schedule");
+
+    // Auto-publish — no overwrite prompt (user just confirmed generation above)
+    const published = await pushScheduleToSheet(key, false);
+
+    if (!published) {
+      // Show a persistent banner so the admin knows to fix this
+      const appsUrl = localStorage.getItem("rccg_apps_script_url") || "";
+      if (!appsUrl) {
+        // No URL configured — guide them to Settings
+        setTimeout(() => {
+          if (confirm("⚠ Schedule was NOT published to Google Sheets because no Apps Script URL is configured.\n\nOther users cannot see this schedule yet.\n\nGo to Settings now to add the URL?")) {
+            navigate("settings");
+          }
+        }, 500);
+      }
+      // If URL was set but publish failed, pushScheduleToSheet already showed the error toast
+    }
+
+  } catch(e) {
+    toast("Generation failed: " + e.message, "error");
+    console.error(e);
+  } finally {
+    genBtn.textContent = "Generate Schedule"; genBtn.disabled = false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  PERSISTENCE — schedules live in Google Sheets (shared), with
+//  localStorage only as a local cache / offline fallback.
+//  All users load from the same sheet; admin pushes update everyone.
+// ─────────────────────────────────────────────────────────────────
+function saveSchedules() {
+  // Always cache locally so the UI is instant on next load
+  try { localStorage.setItem(SCHEDULE_KEY, JSON.stringify(state.schedules)); } catch(e) {}
+}
+
+function loadSchedules() {
+  // Restore from local cache first (instant) — will be overwritten by sheet sync on boot
+  try {
+    const r = localStorage.getItem(SCHEDULE_KEY);
+    if (r) state.schedules = JSON.parse(r);
+  } catch(e) { state.schedules = {}; }
+}
+
+// Load schedules stored in the Google Sheet (via Apps Script)
+// This is what makes schedules shared across all users.
+async function loadSchedulesFromSheet() {
+  const url = localStorage.getItem("rccg_apps_script_url") || "";
+  if (!url) return false;
+  try {
+    const resp = await fetch(url + "?action=loadSchedules", {
+      method: "GET", redirect: "follow", cache: "no-store",
+    });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = JSON.parse(await resp.text());
+    if (data.ok && data.schedules && typeof data.schedules === "object") {
+      for (const [key, sched] of Object.entries(data.schedules)) {
+        state.schedules[key] = sched;
+      }
+      saveSchedules();
+      return true;
+    }
+    if (data.error) throw new Error(data.error);
+  } catch(e) {
+    console.warn("loadSchedulesFromSheet:", e.message);
+  }
+  return false;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  SETTINGS
+// ─────────────────────────────────────────────────────────────────
+function exportData(){
+  const blob=new Blob([JSON.stringify({members:MEMBERS,schedules:state.schedules,exportedAt:new Date().toISOString()},null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=`rccg_media_${new Date().toISOString().slice(0,10)}.json`; a.click();
+  toast("Data exported","success");
+}
+async function refreshSharedSchedules(){
+  toast("Loading schedules from Google Sheets…","info");
+  const ok = await loadSchedulesFromSheet();
+  if (ok) { toast("✅ Schedules refreshed from Google Sheets","success"); renderCurrentSection(); }
+  else toast("Could not load from sheet. Check Apps Script URL in Settings.","error");
+}
+function clearAllData(){
+  if(!confirm("Clear all locally cached schedules? They can be reloaded from Google Sheets."))return;
+  localStorage.removeItem(SCHEDULE_KEY); state.schedules={}; state.activeScheduleKey=null;
+  toast("Local cache cleared — reload from sheet to get schedules back","info"); navigate("dashboard");
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  MOBILE
+// ─────────────────────────────────────────────────────────────────
+document.getElementById("mobileMenuBtn").addEventListener("click",()=>{
+  document.getElementById("sidebar").classList.toggle("open");
+});
+
+// ─────────────────────────────────────────────────────────────────
+//  BOOT — load schedules from storage, then sync members + schedules from sheet
+// ─────────────────────────────────────────────────────────────────
+(async function boot() {
+  loadSchedules(); // instant local cache restore
+  const savedUser = loadSession();
+  if (savedUser) setAuthState(savedUser);
+
+  // Restore Apps Script URL from storage
+  const storedUrl = localStorage.getItem("rccg_apps_script_url") || "";
+  if (storedUrl) {
+    const el = document.getElementById("appsScriptUrl");
+    if (el) el.value = storedUrl;
+  }
+
+  navigate("dashboard");
+
+  try {
+    document.getElementById("loadingSub").textContent = "Fetching Training Record…";
+    await syncFromSheet(true);
+
+    // After members loaded, pull shared schedules from the sheet
+    // so every user sees the admin-generated schedules
+    document.getElementById("loadingSub").textContent = "Loading shared schedules…";
+    const sheetLoaded = await loadSchedulesFromSheet();
+    if (sheetLoaded) renderCurrentSection();
+
+    renderCurrentSection();
+  } catch(e) {}
+
+  const overlay = document.getElementById("loadingOverlay");
+  overlay.classList.add("hidden");
+  setTimeout(()=>overlay.style.display="none", 450);
+
+  // Start loading Pyodide in background after page is visible
+  setTimeout(() => initPyodide(), 1500);
+})();
+</script>
+</body>
+</html>
